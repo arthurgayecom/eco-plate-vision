@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Coffee, Utensils } from "lucide-react";
+import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Utensils } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { CarbonMeter } from "../ui/CarbonMeter";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FoodResult {
   name: string;
@@ -15,82 +16,6 @@ interface FoodResult {
   tip: string;
   confidence: number;
 }
-
-// Simulated AI database for food carbon footprints
-const foodDatabase: Record<string, FoodResult> = {
-  burger: {
-    name: "Beef Burger",
-    ingredients: ["Beef patty", "Brioche bun", "Lettuce", "Tomato", "Cheese", "Pickles"],
-    kgCO2: 6.8,
-    label: "High",
-    comparison: "Driving 28 miles in an average car",
-    tip: "Try a plant-based patty next time to reduce emissions by up to 90%!",
-    confidence: 96,
-  },
-  salad: {
-    name: "Garden Salad",
-    ingredients: ["Mixed greens", "Cherry tomatoes", "Cucumber", "Olive oil dressing"],
-    kgCO2: 0.3,
-    label: "Low",
-    comparison: "Driving just 1.2 miles",
-    tip: "Great choice! Fresh vegetables have minimal carbon impact.",
-    confidence: 94,
-  },
-  chicken: {
-    name: "Grilled Chicken Plate",
-    ingredients: ["Chicken breast", "Rice", "Steamed vegetables", "Herbs"],
-    kgCO2: 2.1,
-    label: "Medium",
-    comparison: "Driving 8.5 miles",
-    tip: "Chicken has a lower footprint than beef. Consider reducing portion size further.",
-    confidence: 92,
-  },
-  vegan: {
-    name: "Vegan Buddha Bowl",
-    ingredients: ["Quinoa", "Chickpeas", "Roasted vegetables", "Tahini", "Avocado"],
-    kgCO2: 0.8,
-    label: "Low",
-    comparison: "Driving only 3.2 miles",
-    tip: "Plant-based meals are among the most sustainable choices. Keep it up!",
-    confidence: 97,
-  },
-  coffee: {
-    name: "Latte with Oat Milk",
-    ingredients: ["Espresso", "Oat milk", "Sugar (optional)"],
-    kgCO2: 0.4,
-    label: "Low",
-    comparison: "Driving 1.6 miles",
-    tip: "Oat milk has 80% less emissions than dairy. Great choice!",
-    confidence: 95,
-  },
-  steak: {
-    name: "Ribeye Steak Dinner",
-    ingredients: ["Beef ribeye", "Mashed potatoes", "Asparagus", "Butter sauce"],
-    kgCO2: 14.2,
-    label: "High",
-    comparison: "Driving 58 miles in an average car",
-    tip: "Red meat has the highest carbon footprint. Save it for special occasions.",
-    confidence: 98,
-  },
-  pizza: {
-    name: "Margherita Pizza",
-    ingredients: ["Pizza dough", "Tomato sauce", "Mozzarella", "Fresh basil", "Olive oil"],
-    kgCO2: 1.8,
-    label: "Medium",
-    comparison: "Driving 7.3 miles",
-    tip: "Vegetarian pizzas have lower impact than meat-topped ones.",
-    confidence: 91,
-  },
-  smoothie: {
-    name: "Berry Smoothie",
-    ingredients: ["Mixed berries", "Banana", "Almond milk", "Honey"],
-    kgCO2: 0.5,
-    label: "Low",
-    comparison: "Driving 2 miles",
-    tip: "Fruit smoothies with plant milk are excellent low-carbon choices!",
-    confidence: 93,
-  },
-};
 
 export function FoodScanTab() {
   const [image, setImage] = useState<string | null>(null);
@@ -111,7 +36,6 @@ export function FoodScanTab() {
   };
 
   const handleCameraCapture = () => {
-    // Create a file input specifically for camera
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -135,23 +59,46 @@ export function FoodScanTab() {
 
     setIsAnalyzing(true);
 
-    // Simulate AI analysis delay
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-
-    // Randomly select a food result to simulate AI detection
-    const foodKeys = Object.keys(foodDatabase);
-    const randomFood = foodKeys[Math.floor(Math.random() * foodKeys.length)];
-    const detectedFood = foodDatabase[randomFood];
-
-    // Only accept high confidence results
-    if (detectedFood.confidence >= 90) {
-      setResult(detectedFood);
-      toast.success("Food analyzed successfully!", {
-        description: `Detected: ${detectedFood.name} with ${detectedFood.confidence}% confidence`,
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-food", {
+        body: { imageBase64: image },
       });
-    } else {
-      toast.error("Could not identify food with high confidence", {
-        description: "Please try a clearer image",
+
+      if (error) {
+        console.error("Error analyzing food:", error);
+        toast.error("Failed to analyze food", {
+          description: error.message || "Please try again with a clearer image",
+        });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error("Analysis failed", {
+          description: data.error,
+        });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (data?.result) {
+        const foodResult = data.result as FoodResult;
+        
+        if (foodResult.confidence >= 85) {
+          setResult(foodResult);
+          toast.success("Food analyzed successfully!", {
+            description: `Detected: ${foodResult.name} with ${foodResult.confidence}% confidence`,
+          });
+        } else {
+          toast.error("Could not identify food with high confidence", {
+            description: `Only ${foodResult.confidence}% confident. Please try a clearer image.`,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Something went wrong", {
+        description: "Please try again",
       });
     }
 
