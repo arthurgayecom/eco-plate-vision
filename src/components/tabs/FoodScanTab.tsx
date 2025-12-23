@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Utensils, Droplets, MapPin, Zap, Trash2, Scale, Star, ArrowRight } from "lucide-react";
+import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Utensils, Droplets, MapPin, Zap, Trash2, Scale, Star, Heart, Apple, AlertTriangle, CheckCircle } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { CarbonMeter } from "../ui/CarbonMeter";
 import { Button } from "../ui/button";
@@ -20,6 +20,22 @@ interface PotentialWaste {
   preventionTip: string;
 }
 
+interface HealthAnalysis {
+  healthScore: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sodium: number;
+  sugar: number;
+  vitamins: string[];
+  healthLabel: "Healthy" | "Moderate" | "Unhealthy";
+  benefits: string[];
+  concerns: string[];
+  healthTip: string;
+}
+
 interface FoodResult {
   name: string;
   ingredients: string[];
@@ -29,6 +45,7 @@ interface FoodResult {
   comparison: string;
   resourcesUsed: ResourcesUsed;
   potentialWaste: PotentialWaste;
+  healthAnalysis: HealthAnalysis;
   qualityScore: number;
   qualityNotes: string;
   tip: string;
@@ -340,6 +357,136 @@ export function FoodScanTab() {
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{foodResult.qualityNotes}</p>
                   </div>
+                </div>
+
+                {/* Health Analysis Section - Good for Body */}
+                {foodResult.healthAnalysis && (
+                  <div className="p-4 bg-gradient-to-br from-pink-500/10 to-red-500/10 border border-pink-500/20 rounded-xl space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-pink-500" />
+                      <span className="font-semibold text-foreground">Health for Your Body</span>
+                      <span className={`ml-auto px-2 py-0.5 text-xs font-medium rounded-full ${
+                        foodResult.healthAnalysis.healthLabel === "Healthy" 
+                          ? "bg-green-500/20 text-green-600"
+                          : foodResult.healthAnalysis.healthLabel === "Moderate"
+                          ? "bg-yellow-500/20 text-yellow-600"
+                          : "bg-red-500/20 text-red-600"
+                      }`}>
+                        {foodResult.healthAnalysis.healthLabel}
+                      </span>
+                    </div>
+
+                    {/* Health Score */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="h-3 bg-secondary rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${foodResult.healthAnalysis.healthScore}%` }}
+                            transition={{ duration: 1 }}
+                            className={`h-full ${
+                              foodResult.healthAnalysis.healthScore >= 75 
+                                ? "bg-green-500"
+                                : foodResult.healthAnalysis.healthScore >= 50
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold">{foodResult.healthAnalysis.healthScore}/100</span>
+                    </div>
+
+                    {/* Nutrition Grid */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="p-2 bg-background/50 rounded-lg text-center">
+                        <p className="text-lg font-bold text-foreground">{foodResult.healthAnalysis.calories}</p>
+                        <p className="text-xs text-muted-foreground">Calories</p>
+                      </div>
+                      <div className="p-2 bg-background/50 rounded-lg text-center">
+                        <p className="text-lg font-bold text-blue-500">{foodResult.healthAnalysis.protein}g</p>
+                        <p className="text-xs text-muted-foreground">Protein</p>
+                      </div>
+                      <div className="p-2 bg-background/50 rounded-lg text-center">
+                        <p className="text-lg font-bold text-yellow-500">{foodResult.healthAnalysis.carbs}g</p>
+                        <p className="text-xs text-muted-foreground">Carbs</p>
+                      </div>
+                      <div className="p-2 bg-background/50 rounded-lg text-center">
+                        <p className="text-lg font-bold text-orange-500">{foodResult.healthAnalysis.fat}g</p>
+                        <p className="text-xs text-muted-foreground">Fat</p>
+                      </div>
+                    </div>
+
+                    {/* Additional Nutrients */}
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex items-center justify-between px-2 py-1 bg-background/30 rounded">
+                        <span className="text-muted-foreground">Fiber</span>
+                        <span className="font-medium">{foodResult.healthAnalysis.fiber}g</span>
+                      </div>
+                      <div className="flex items-center justify-between px-2 py-1 bg-background/30 rounded">
+                        <span className="text-muted-foreground">Sugar</span>
+                        <span className="font-medium">{foodResult.healthAnalysis.sugar}g</span>
+                      </div>
+                      <div className="flex items-center justify-between px-2 py-1 bg-background/30 rounded">
+                        <span className="text-muted-foreground">Sodium</span>
+                        <span className="font-medium">{foodResult.healthAnalysis.sodium}mg</span>
+                      </div>
+                    </div>
+
+                    {/* Vitamins */}
+                    {foodResult.healthAnalysis.vitamins.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1.5">Key Nutrients</p>
+                        <div className="flex flex-wrap gap-1">
+                          {foodResult.healthAnalysis.vitamins.map((vitamin, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-green-500/20 text-green-600 rounded-full text-xs">
+                              {vitamin}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Benefits & Concerns */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {foodResult.healthAnalysis.benefits.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3 text-green-500" /> Benefits
+                          </p>
+                          <ul className="space-y-1">
+                            {foodResult.healthAnalysis.benefits.slice(0, 3).map((benefit, i) => (
+                              <li key={i} className="text-xs text-green-600">{benefit}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {foodResult.healthAnalysis.concerns.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-orange-500" /> Concerns
+                          </p>
+                          <ul className="space-y-1">
+                            {foodResult.healthAnalysis.concerns.slice(0, 3).map((concern, i) => (
+                              <li key={i} className="text-xs text-orange-600">{concern}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Health Tip */}
+                    <div className="flex items-start gap-2 p-2 bg-pink-500/10 rounded-lg">
+                      <Apple className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-foreground">{foodResult.healthAnalysis.healthTip}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Planet Impact Section Header */}
+                <div className="flex items-center gap-2 pt-2">
+                  <Leaf className="w-5 h-5 text-primary" />
+                  <span className="font-semibold text-foreground">Impact on the Planet</span>
                 </div>
 
                 {/* Carbon Meter */}
