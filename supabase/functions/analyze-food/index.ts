@@ -71,7 +71,7 @@ wasteCategory thresholds:
 - High: > 30% waste
 
 Be precise in identifying what was left uneaten.`
-      : `You are an expert food analyst specializing in carbon footprint estimation. Analyze the food image and provide accurate carbon emissions data.
+      : `You are an expert food analyst specializing in both carbon footprint estimation AND nutritional health analysis. Analyze the food image and provide accurate environmental and health data.
 
 You MUST respond with ONLY valid JSON in this exact format (no markdown, no code blocks, just raw JSON):
 {
@@ -91,6 +91,21 @@ You MUST respond with ONLY valid JSON in this exact format (no markdown, no code
     "potentialWastedKgCO2": 0.4,
     "potentialWaterWasted": 75,
     "preventionTip": "Tips to minimize waste for this dish"
+  },
+  "healthAnalysis": {
+    "healthScore": 75,
+    "calories": 650,
+    "protein": 25,
+    "carbs": 60,
+    "fat": 20,
+    "fiber": 5,
+    "sodium": 800,
+    "sugar": 8,
+    "vitamins": ["Vitamin A", "Vitamin C", "Iron"],
+    "healthLabel": "Moderate",
+    "benefits": ["High in protein", "Good source of fiber"],
+    "concerns": ["High in sodium", "Processed ingredients"],
+    "healthTip": "Consider adding more vegetables to increase fiber and vitamins"
   },
   "qualityScore": 75,
   "qualityNotes": "Assessment of food preparation, freshness, and sustainability of ingredients",
@@ -123,6 +138,20 @@ Label thresholds:
 - Low: < 1 kg CO2
 - Medium: 1-4 kg CO2
 - High: > 4 kg CO2
+
+Health scoring guidelines:
+- healthScore (0-100): Overall nutritional value
+- healthLabel: "Healthy" (75-100), "Moderate" (50-74), "Unhealthy" (0-49)
+- Estimate macros based on visible ingredients and typical portions
+- List key vitamins/minerals present
+- Identify both benefits and health concerns
+
+Health considerations:
+- Processed foods: Lower score, flag concerns
+- Fresh vegetables/fruits: Higher score, list vitamin benefits
+- Fried foods: Flag fat/calorie concerns
+- High sodium: Flag for processed/restaurant foods
+- Sugary items: Flag sugar content
 
 Quality score (0-100) based on:
 - Freshness/appearance
