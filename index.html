@@ -1,32 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Basic settings -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#22c55e" />
+
+    <!-- PWA / iOS support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Manifest for Android install -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- SEO -->
     <title>CarbonBite - Food Carbon Impact Tracker</title>
     <meta name="description" content="Understand the carbon footprint of your food. Scan meals, learn global impact, and join the movement for sustainable eating." />
     <meta name="keywords" content="carbon footprint, food emissions, sustainable eating, climate action, eco friendly, carbon tracker" />
     <meta name="author" content="CarbonBite" />
 
+    <!-- Social sharing -->
     <meta property="og:title" content="CarbonBite - Food Carbon Impact Tracker" />
     <meta property="og:description" content="Scan your meals to discover their carbon footprint. Make informed choices for a sustainable future." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/images/opengraph.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@CarbonBite" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-    
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="twitter:image" content="/images/opengraph.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
   </head>
 
   <body>
+    <!-- React root -->
     <div id="root"></div>
+
+    <!-- Main JS -->
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Optional: Service Worker Registration for offline support -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(function(registration) {
+              console.log('Service Worker registered with scope:', registration.scope);
+            })
+            .catch(function(error) {
+              console.log('Service Worker registration failed:', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
+
