@@ -1,9 +1,9 @@
-# Welcome to your Lovable project
+# Welcome to your project
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
+**URL**: 
+https://carbonbite.netlify.app
 
 ## What technologies are used for this project?
 
@@ -13,9 +13,14 @@ This project is built with:
 - TypeScript
 - React
 - shadcn-ui
-- Tailwind CSS
+- Tailwind CS
 
-## How can I deploy this project?
 
-Simply open (https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+ 
+ ## How to add the app?
+
+ 
+1 go to https://carbonbite.netlify.app
+2 click three buttons in the bottom right
+3 Click share and add to homescreen
 
