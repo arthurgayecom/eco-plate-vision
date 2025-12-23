@@ -1,41 +1,83 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Utensils } from "lucide-react";
+import { Camera, Upload, X, Sparkles, Loader2, Car, Leaf, Utensils, Droplets, MapPin, Zap, Trash2, Scale, Star, ArrowRight } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { CarbonMeter } from "../ui/CarbonMeter";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+interface ResourcesUsed {
+  waterLiters: number;
+  landSqMeters: number;
+  energyKwh: number;
+}
+
+interface PotentialWaste {
+  typicalWastePercent: number;
+  potentialWastedKgCO2: number;
+  potentialWaterWasted: number;
+  preventionTip: string;
+}
+
 interface FoodResult {
   name: string;
   ingredients: string[];
+  estimatedWeightGrams: number;
   kgCO2: number;
   label: "Low" | "Medium" | "High";
   comparison: string;
+  resourcesUsed: ResourcesUsed;
+  potentialWaste: PotentialWaste;
+  qualityScore: number;
+  qualityNotes: string;
   tip: string;
   confidence: number;
 }
 
-export function FoodScanTab() {
-  const [image, setImage] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<FoodResult | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+interface WasteResult {
+  wastedItems: string[];
+  estimatedWasteGrams: number;
+  wastePercentage: number;
+  wastedKgCO2: number;
+  wasteCategory: "Low" | "Medium" | "High";
+  resourcesLost: ResourcesUsed;
+  wasteComparison: string;
+  wasteTip: string;
+  confidence: number;
+}
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+type AnalysisStep = "initial" | "food-analyzed" | "waste-analyzed";
+
+export function FoodScanTab() {
+  const [beforeImage, setBeforeImage] = useState<string | null>(null);
+  const [afterImage, setAfterImage] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<AnalysisStep>("initial");
+  const [foodResult, setFoodResult] = useState<FoodResult | null>(null);
+  const [wasteResult, setWasteResult] = useState<WasteResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const afterFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "before" | "after") => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImage(reader.result as string);
-        setResult(null);
+        if (type === "before") {
+          setBeforeImage(reader.result as string);
+          setFoodResult(null);
+          setAnalysisStep("initial");
+        } else {
+          setAfterImage(reader.result as string);
+          setWasteResult(null);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleCameraCapture = () => {
+  const handleCameraCapture = (type: "before" | "after") => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -45,8 +87,14 @@ export function FoodScanTab() {
       if (file) {
         const reader = new FileReader();
         reader.onloadend = () => {
-          setImage(reader.result as string);
-          setResult(null);
+          if (type === "before") {
+            setBeforeImage(reader.result as string);
+            setFoodResult(null);
+            setAnalysisStep("initial");
+          } else {
+            setAfterImage(reader.result as string);
+            setWasteResult(null);
+          }
         };
         reader.readAsDataURL(file);
       }
@@ -54,14 +102,13 @@ export function FoodScanTab() {
     input.click();
   };
 
-  const analyzeImage = async () => {
-    if (!image) return;
-
+  const analyzeFood = async () => {
+    if (!beforeImage) return;
     setIsAnalyzing(true);
 
     try {
       const { data, error } = await supabase.functions.invoke("analyze-food", {
-        body: { imageBase64: image },
+        body: { imageBase64: beforeImage, analysisType: "food" },
       });
 
       if (error) {
@@ -74,40 +121,83 @@ export function FoodScanTab() {
       }
 
       if (data?.error) {
-        toast.error("Analysis failed", {
-          description: data.error,
-        });
+        toast.error("Analysis failed", { description: data.error });
         setIsAnalyzing(false);
         return;
       }
 
       if (data?.result) {
-        const foodResult = data.result as FoodResult;
-        
-        if (foodResult.confidence >= 85) {
-          setResult(foodResult);
+        const result = data.result as FoodResult;
+        if (result.confidence >= 85) {
+          setFoodResult(result);
+          setAnalysisStep("food-analyzed");
           toast.success("Food analyzed successfully!", {
-            description: `Detected: ${foodResult.name} with ${foodResult.confidence}% confidence`,
+            description: `Detected: ${result.name} (${result.estimatedWeightGrams}g)`,
           });
         } else {
           toast.error("Could not identify food with high confidence", {
-            description: `Only ${foodResult.confidence}% confident. Please try a clearer image.`,
+            description: `Only ${result.confidence}% confident. Please try a clearer image.`,
           });
         }
       }
     } catch (err) {
       console.error("Error:", err);
-      toast.error("Something went wrong", {
-        description: "Please try again",
-      });
+      toast.error("Something went wrong", { description: "Please try again" });
     }
-
     setIsAnalyzing(false);
   };
 
-  const clearImage = () => {
-    setImage(null);
-    setResult(null);
+  const analyzeWaste = async () => {
+    if (!afterImage) return;
+    setIsAnalyzing(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-food", {
+        body: { imageBase64: afterImage, analysisType: "waste" },
+      });
+
+      if (error) {
+        console.error("Error analyzing waste:", error);
+        toast.error("Failed to analyze waste", {
+          description: error.message || "Please try again with a clearer image",
+        });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error("Analysis failed", { description: data.error });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (data?.result) {
+        const result = data.result as WasteResult;
+        if (result.confidence >= 75) {
+          setWasteResult(result);
+          setAnalysisStep("waste-analyzed");
+          toast.success("Waste analyzed!", {
+            description: `${result.wastePercentage}% of your meal was wasted`,
+          });
+        } else {
+          toast.error("Could not analyze waste with confidence", {
+            description: "Please try a clearer image of the leftovers.",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Something went wrong", { description: "Please try again" });
+    }
+    setIsAnalyzing(false);
+  };
+
+  const clearAll = () => {
+    setBeforeImage(null);
+    setAfterImage(null);
+    setFoodResult(null);
+    setWasteResult(null);
+    setAnalysisStep("initial");
   };
 
   const getMeterValue = (label: "Low" | "Medium" | "High") => {
@@ -118,19 +208,22 @@ export function FoodScanTab() {
 
   return (
     <div className="space-y-4">
-      {/* Upload Section */}
+      {/* Before Meal Upload */}
       <GlassCard delay={0.1}>
         <div className="text-center mb-4">
-          <h2 className="font-heading text-xl font-semibold text-foreground">Scan Your Food</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Upload a photo or take a picture of your meal
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <Utensils className="w-5 h-5 text-primary" />
+            <h2 className="font-heading text-xl font-semibold text-foreground">Before Eating</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Upload a photo of your meal before eating
           </p>
         </div>
 
         <AnimatePresence mode="wait">
-          {!image ? (
+          {!beforeImage ? (
             <motion.div
-              key="upload"
+              key="upload-before"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -138,68 +231,62 @@ export function FoodScanTab() {
             >
               <div className="flex gap-3">
                 <Button
-                  onClick={handleCameraCapture}
-                  className="flex-1 h-24 flex-col gap-2 gradient-primary hover:opacity-90 border-0"
+                  onClick={() => handleCameraCapture("before")}
+                  className="flex-1 h-20 flex-col gap-2 gradient-primary hover:opacity-90 border-0"
                 >
-                  <Camera className="w-6 h-6" />
-                  <span>Take Photo</span>
+                  <Camera className="w-5 h-5" />
+                  <span className="text-sm">Take Photo</span>
                 </Button>
-
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
-                  className="flex-1 h-24 flex-col gap-2"
+                  className="flex-1 h-20 flex-col gap-2"
                 >
-                  <Upload className="w-6 h-6" />
-                  <span>Upload</span>
+                  <Upload className="w-5 h-5" />
+                  <span className="text-sm">Upload</span>
                 </Button>
               </div>
-
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleImageUpload}
+                onChange={(e) => handleImageUpload(e, "before")}
                 className="hidden"
               />
             </motion.div>
           ) : (
             <motion.div
-              key="preview"
+              key="preview-before"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="space-y-4"
+              className="space-y-3"
             >
               <div className="relative rounded-xl overflow-hidden">
-                <img
-                  src={image}
-                  alt="Food preview"
-                  className="w-full h-48 object-cover"
-                />
+                <img src={beforeImage} alt="Food before" className="w-full h-40 object-cover" />
                 <button
-                  onClick={clearImage}
+                  onClick={clearAll}
                   className="absolute top-2 right-2 p-2 bg-foreground/80 text-background rounded-full hover:bg-foreground transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {!result && (
+              {analysisStep === "initial" && (
                 <Button
-                  onClick={analyzeImage}
+                  onClick={analyzeFood}
                   disabled={isAnalyzing}
-                  className="w-full h-12 gradient-primary hover:opacity-90 border-0 text-base"
+                  className="w-full h-11 gradient-primary hover:opacity-90 border-0"
                 >
                   {isAnalyzing ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Analyzing with AI...
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analyzing...
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      Analyze Carbon Impact
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Analyze Meal
                     </>
                   )}
                 </Button>
@@ -209,9 +296,9 @@ export function FoodScanTab() {
         </AnimatePresence>
       </GlassCard>
 
-      {/* Results Section */}
+      {/* Food Analysis Results */}
       <AnimatePresence>
-        {result && (
+        {foodResult && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -220,36 +307,66 @@ export function FoodScanTab() {
           >
             <GlassCard delay={0}>
               <div className="space-y-4">
-                {/* Food Name & Confidence */}
+                {/* Food Name & Weight */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <Utensils className="w-5 h-5 text-primary" />
-                      <h3 className="font-heading text-lg font-semibold">{result.name}</h3>
-                    </div>
+                    <h3 className="font-heading text-lg font-semibold">{foodResult.name}</h3>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {result.ingredients.map((ing, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full text-xs"
-                        >
+                      {foodResult.ingredients.map((ing, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full text-xs">
                           {ing}
                         </span>
                       ))}
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs text-muted-foreground">Confidence</span>
-                    <p className="text-sm font-semibold text-primary">{result.confidence}%</p>
+                    <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                      <Scale className="w-3 h-3" />
+                      <span>Weight</span>
+                    </div>
+                    <p className="font-semibold text-primary">{foodResult.estimatedWeightGrams}g</p>
+                  </div>
+                </div>
+
+                {/* Quality Score */}
+                <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-xl">
+                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Star className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">Food Quality</span>
+                      <span className="text-sm font-semibold">{foodResult.qualityScore}/100</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{foodResult.qualityNotes}</p>
                   </div>
                 </div>
 
                 {/* Carbon Meter */}
                 <CarbonMeter
-                  value={getMeterValue(result.label)}
-                  label={result.label}
-                  kgCO2={result.kgCO2}
+                  value={getMeterValue(foodResult.label)}
+                  label={foodResult.label}
+                  kgCO2={foodResult.kgCO2}
                 />
+
+                {/* Resources Used */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 bg-blue-500/10 rounded-xl text-center">
+                    <Droplets className="w-4 h-4 text-blue-500 mx-auto mb-1" />
+                    <p className="text-xs text-muted-foreground">Water</p>
+                    <p className="text-sm font-semibold">{foodResult.resourcesUsed.waterLiters}L</p>
+                  </div>
+                  <div className="p-3 bg-green-500/10 rounded-xl text-center">
+                    <MapPin className="w-4 h-4 text-green-500 mx-auto mb-1" />
+                    <p className="text-xs text-muted-foreground">Land</p>
+                    <p className="text-sm font-semibold">{foodResult.resourcesUsed.landSqMeters}m²</p>
+                  </div>
+                  <div className="p-3 bg-yellow-500/10 rounded-xl text-center">
+                    <Zap className="w-4 h-4 text-yellow-500 mx-auto mb-1" />
+                    <p className="text-xs text-muted-foreground">Energy</p>
+                    <p className="text-sm font-semibold">{foodResult.resourcesUsed.energyKwh}kWh</p>
+                  </div>
+                </div>
 
                 {/* Comparison */}
                 <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-xl">
@@ -258,25 +375,227 @@ export function FoodScanTab() {
                   </div>
                   <p className="text-sm">
                     <span className="text-muted-foreground">Equivalent to </span>
-                    <span className="font-medium text-foreground">{result.comparison}</span>
+                    <span className="font-medium text-foreground">{foodResult.comparison}</span>
                   </p>
                 </div>
 
-                {/* Tip */}
+                {/* Potential Waste Warning */}
+                <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trash2 className="w-4 h-4 text-orange-500" />
+                    <span className="text-sm font-semibold text-orange-600">Potential Waste Impact</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Typical waste</p>
+                      <p className="text-sm font-semibold">{foodResult.potentialWaste.typicalWastePercent}%</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">CO₂ if wasted</p>
+                      <p className="text-sm font-semibold">{foodResult.potentialWaste.potentialWastedKgCO2} kg</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{foodResult.potentialWaste.preventionTip}</p>
+                </div>
+
+                {/* Eco Tip */}
                 <div className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
                   <Leaf className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-foreground">{result.tip}</p>
+                  <p className="text-sm text-foreground">{foodResult.tip}</p>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* After Meal Upload - Only show after food is analyzed */}
+      {analysisStep === "food-analyzed" && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <GlassCard delay={0.1}>
+            <div className="text-center mb-4">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Trash2 className="w-5 h-5 text-orange-500" />
+                <h2 className="font-heading text-xl font-semibold text-foreground">After Eating</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Upload a photo of your plate after eating to measure waste
+              </p>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {!afterImage ? (
+                <motion.div
+                  key="upload-after"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-3"
+                >
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => handleCameraCapture("after")}
+                      className="flex-1 h-20 flex-col gap-2 bg-orange-500 hover:bg-orange-600 border-0"
+                    >
+                      <Camera className="w-5 h-5" />
+                      <span className="text-sm">Take Photo</span>
+                    </Button>
+                    <Button
+                      onClick={() => afterFileInputRef.current?.click()}
+                      variant="secondary"
+                      className="flex-1 h-20 flex-col gap-2"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="text-sm">Upload</span>
+                    </Button>
+                  </div>
+                  <input
+                    ref={afterFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "after")}
+                    className="hidden"
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="preview-after"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="space-y-3"
+                >
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img src={afterImage} alt="Food after" className="w-full h-40 object-cover" />
+                    <button
+                      onClick={() => setAfterImage(null)}
+                      className="absolute top-2 right-2 p-2 bg-foreground/80 text-background rounded-full hover:bg-foreground transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {!wasteResult && (
+                    <Button
+                      onClick={analyzeWaste}
+                      disabled={isAnalyzing}
+                      className="w-full h-11 bg-orange-500 hover:bg-orange-600 border-0"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Analyzing Waste...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Measure Waste
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* Waste Analysis Results */}
+      <AnimatePresence>
+        {wasteResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+          >
+            <GlassCard delay={0}>
+              <div className="space-y-4">
+                {/* Waste Summary */}
+                <div className="text-center p-4 bg-secondary/50 rounded-xl">
+                  <p className="text-xs text-muted-foreground mb-1">You wasted</p>
+                  <p className="text-3xl font-heading font-bold text-orange-500">{wasteResult.wastePercentage}%</p>
+                  <p className="text-sm text-muted-foreground mt-1">{wasteResult.estimatedWasteGrams}g of your meal</p>
+                </div>
+
+                {/* Wasted Items */}
+                {wasteResult.wastedItems.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Wasted items</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {wasteResult.wastedItems.map((item, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-orange-500/20 text-orange-600 rounded-full text-xs">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Waste Carbon Meter */}
+                <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">CO₂ Wasted</span>
+                    <span className="text-lg font-bold text-orange-500">{wasteResult.wastedKgCO2} kg</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(wasteResult.wastePercentage, 100)}%` }}
+                      transition={{ duration: 1 }}
+                      className="h-full bg-orange-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Resources Lost */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Resources Lost</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-3 bg-red-500/10 rounded-xl text-center">
+                      <Droplets className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                      <p className="text-xs text-muted-foreground">Water</p>
+                      <p className="text-sm font-semibold text-red-500">{wasteResult.resourcesLost.waterLiters}L</p>
+                    </div>
+                    <div className="p-3 bg-red-500/10 rounded-xl text-center">
+                      <MapPin className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                      <p className="text-xs text-muted-foreground">Land</p>
+                      <p className="text-sm font-semibold text-red-500">{wasteResult.resourcesLost.landSqMeters}m²</p>
+                    </div>
+                    <div className="p-3 bg-red-500/10 rounded-xl text-center">
+                      <Zap className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                      <p className="text-xs text-muted-foreground">Energy</p>
+                      <p className="text-sm font-semibold text-red-500">{wasteResult.resourcesLost.energyKwh}kWh</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Waste Comparison */}
+                <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-xl">
+                  <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Your waste is </span>
+                    <span className="font-medium text-foreground">{wasteResult.wasteComparison}</span>
+                  </p>
+                </div>
+
+                {/* Waste Tip */}
+                <div className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                  <Leaf className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-foreground">{wasteResult.wasteTip}</p>
                 </div>
               </div>
             </GlassCard>
 
             {/* Scan Another */}
             <div className="mt-4">
-              <Button
-                variant="outline"
-                onClick={clearImage}
-                className="w-full"
-              >
+              <Button variant="outline" onClick={clearAll} className="w-full">
                 Scan Another Meal
               </Button>
             </div>
@@ -284,8 +603,8 @@ export function FoodScanTab() {
         )}
       </AnimatePresence>
 
-      {/* Quick Examples */}
-      {!image && (
+      {/* Quick Examples - Only show when nothing is uploaded */}
+      {!beforeImage && (
         <GlassCard delay={0.2}>
           <h3 className="font-heading text-sm font-semibold text-muted-foreground mb-3">
             Common Food Carbon Footprints
